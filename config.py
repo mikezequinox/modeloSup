@@ -20,7 +20,7 @@ REFERENCE_FILE = BASE_DIR / "clinical_substitutions.csv"
 
 # Cache dos scores ESM-1v já calculados, para não recomputar a cada execução
 CACHE_DIR = BASE_DIR / "cache"
-ESM_SCORES_CACHE = CACHE_DIR / "esm1v_scores.csv"
+ESM_SCORES_CACHE = CACHE_DIR / "esm1vScores.csv"
 
 # Saída de métricas, modelo final etc.
 OUTPUT_DIR = BASE_DIR / "resultados"
@@ -67,3 +67,21 @@ MIN_VARIANTS_PER_PROTEIN = 3
 
 # Razão máxima entre classes no treino antes de acionar class_weight="balanced"
 IMBALANCE_RATIO_THRESHOLD = 1.5
+
+# --------------------------------------------------------------------------- #
+# Extensão: embeddings WT + PCA (pipeline_with_embeddings.py)
+#
+# ATENÇÃO: esta extensão adiciona 200 features derivadas do embedding WT do ESM-1v
+# ao score já existente (esm1v_score), totalizando 201 features. Isso é uma variação
+# explícita além do plano original (que especifica uma única feature de entrada) —
+# mantida em arquivos separados para não alterar o pipeline base (pipeline.py).
+# --------------------------------------------------------------------------- #
+CACHE_METADATA_FILE = CACHE_DIR / "metadata.csv"
+CACHE_EMBEDDINGS_FILE = CACHE_DIR / "embeddings.npz"
+CACHE_ESM1V_SCORES_FILE = CACHE_DIR / "esm1vScores.csv"
+
+N_PCA_COMPONENTS = 200
+WT_EMBEDDING_DIM = 1280
+
+# Artefato final (modelo + scaler + pca + threshold) da versão com embeddings
+EMBEDDINGS_MODEL_ARTIFACT = OUTPUT_DIR / "modelo_final_embeddings.joblib"

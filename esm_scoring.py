@@ -126,6 +126,56 @@ class MaskedMarginalScorer:
         return (log_probs[mt_idx] - log_probs[wt_idx]).item()
 
 
+def extract_wt_embedding(
+    model,
+    alphabet,
+    device: str,
+    sequence: str,
+    repr_layer: int = None,
+    max_tokens: int = ESM_MAX_TOKENS,
+) -> "torch.Tensor":
+    """
+    Extrai um embedding de proteína inteira (wild-type) do ESM-1v: a representação
+    média por resíduo (mean-pooling), excluindo os tokens especiais (BOS/EOS), na
+    camada `repr_layer` (por padrão, a última camada do modelo).
+
+    ATENÇÃO: esta é uma escolha de projeto (mean-pooling na última camada) e pode não
+    ser idêntica ao procedimento usado para gerar um `embeddings.npz` pré-existente
+    gerado por outro script. Se você já tem embeddings WT pré-computados, confirme que
+    o método de extração bate com este antes de usar esta função na inferência —
+    caso contrário, os embeddings de treino e os de inferência não serão comparáveis.
+
+    Para sequências mais longas que o limite de contexto do modelo, a sequência é
+    truncada a partir do N-terminal (não há uma "posição de interesse" para centralizar
+    uma janela, diferente do scoring de uma mutação específica) — isso descarta
+    informação do C-terminal em proteínas muito longas.
+    """
+    max_len = max_tokens - 2
+    if len(sequence) > max_len:
+        logger.warning(
+            "Sequência (%d aa) excede o limite de contexto (%d) — truncando a partir do N-terminal "
+            "para extração do embedding WT. Informação do C-terminal será perdida.",
+            len(sequence), max_len,
+        )
+        sequence = sequence[:max_len]
+
+    if repr_layer is None:
+        repr_layer = model.num_layers
+
+    batch_converter = alphabet.get_batch_converter()
+    _, _, tokens = batch_converter([("wt", sequence)])
+    tokens = tokens.to(device)
+
+    with torch.no_grad():
+        out = model(tokens, repr_layers=[repr_layer])
+    representations = out["representations"][repr_layer][0]  # (seq_len + 2, hidden_dim)
+
+    # remove BOS (posição 0) e EOS (última posição), mantendo só resíduos reais
+    residue_repr = representations[1 : 1 + len(sequence)]
+    embedding = residue_repr.mean(dim=0).cpu()
+    return embedding
+
+
 def compute_esm_scores(
     data: pd.DataFrame,
     cache_path: Path = ESM_SCORES_CACHE,
